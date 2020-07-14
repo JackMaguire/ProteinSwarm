@@ -65,7 +65,7 @@ enum class InitialSamplingMethod
 template< typename Value = double >
 class ParticleInitialzer {
 public:
-  virtual ~ParticleInitialzer(){};
+  virtual ~ParticleInitialzer() = default;
 
   //This will be called many times for a single run, once for each particle
   virtual
@@ -79,6 +79,33 @@ public:
   ) const = 0; //returns the starting values for each dimension for this particle
 
 };
+
+template< typename Value = double >
+class UniformParticleInitialzer : public ParticleInitialzer< Value > {
+public:
+	UniformParticleInitialzer() = default;
+
+  ~UniformParticleInitialzer() override = default;
+
+  //This will be called many times for a single run, once for each particle
+  std::vector< Value >
+  initialize_one_particle(
+		uint ndim,
+    uint,
+    uint,
+    std::vector< Value > const & lower_bounds,
+    std::vector< Value > const & upper_bounds
+  ) const override {
+		std::vector< Value > vec( ndim );
+		for( uint d = 0; d < ndim; ++d ){
+			vec[ d ] = lower_bounds[ d ] +
+				( (upper_bounds[d]-lower_bounds[d]) * rand_01< Value >() );
+		}
+		return vec;
+	}
+
+};
+
 
 struct SampleInfo {
   uint particle;
@@ -136,7 +163,7 @@ public:
 		assert( global_best_position.size() == current_position_.size() );
 		assert( lower_bounds.size() == current_position_.size() );
 		assert( upper_bounds.size() == current_position_.size() );
-		assert( current_speed_.size() == current_position_.size() );
+		assert( current_speed_.size()  == current_position_.size() );
 		assert( best_position_.size() == current_position_.size() );
 
 		current_score_is_outdated_ = true;
@@ -289,10 +316,15 @@ public:
     lower_bounds_( lower_bounds ),
     upper_bounds_( upper_bounds )
   {
+		assert( lower_bounds.size() == ndim );
+		assert( upper_bounds.size() == ndim );
+
     switch( sampling_method ){
-      //TODO
+		case( InitialSamplingMethod::UNIFORM ):
+			UniformParticleInitialzer< Value > init;
+			initialize( init );
+			break;
     }
-    initialize();
   }
 
   void reset(){
@@ -358,7 +390,7 @@ protected:
     for( uint i = 0; i < n_particles_; ++i ){
 			particle_queue_.push( i );
 
-			std::vector< Value > const starting_position = initializer.initialize_one_particle( n_particles_, i, lower_bounds_, upper_bounds_ );
+			std::vector< Value > const starting_position = initializer.initialize_one_particle( ndim_, n_particles_, i, lower_bounds_, upper_bounds_ );
 
 			std::vector< Value > starting_velocity( ndim_ );
 			for( uint d = 0; d < ndim_; ++d ){
