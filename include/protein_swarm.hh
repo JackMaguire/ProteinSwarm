@@ -21,7 +21,7 @@
 */
 
 template< typename Value >
-rand_01(){
+Value rand_01(){
 	return Value( rand() ) / Value( RAND_MAX );
 }
 
@@ -62,7 +62,7 @@ enum class InitialSamplingMethod
    //CUSTOM
   };
 
-template< uint NDIM, typename Value = double >
+template< typename Value = double >
 class ParticleInitialzer {
 public:
   virtual ~ParticleInitialzer(){};
@@ -71,6 +71,7 @@ public:
   virtual
   std::vector< Value >
   initialize_one_particle(
+		uint ndim,//How many dimensions does this case have?
     uint n_total_particles, //How many particles are in the system?
     uint particle_id, //which particle are we considering now? Ranging from [ 0, n_total_particles-1 ] inclusive
     std::vector< Value > const & lower_bounds,//these are the bounds, which the user probably already knows anyways
@@ -281,7 +282,7 @@ public:
 		uint const ndim,
     std::vector< Value > const & lower_bounds,
     std::vector< Value > const & upper_bounds,
-    InitialSamplingMethod const sampling_method = UNIFORM
+    InitialSamplingMethod const sampling_method = InitialSamplingMethod::UNIFORM
   ):
     n_particles_( n_particles ),
 		ndim_( ndim ),
@@ -324,7 +325,7 @@ public:
     SampleInfo const info,
     Value const score
   ){
-		++n_tells;
+		++n_tells_;
 		particles_[ info.particle ].set_current_score( score );
 
 		if( score < global_best_score_ ){
@@ -346,7 +347,7 @@ public://getters and setters
 
 protected:
   void initialize(
-    ParticleInitialzer const & initializer
+    ParticleInitialzer< Value > const & initializer
   ){
 		assert( ndim_ > 0 );
 		assert( n_particles_ > 0 );
@@ -364,7 +365,7 @@ protected:
 				Value const span = upper_bounds_[ d ] - lower_bounds_[ d ];
 				constexpr Value span_coeff = 0.25;
 				Value const vec = ( span * span_coeff ) //scale magnitude of V to range size
-					* ( 2*rand_01() - 1.0); // adjust to ( -25% to 25% )
+					* ( 2*rand_01< Value >() - 1.0); // adjust to ( -25% to 25% )
 				starting_velocity[ d ] = vec;
 			}
 
