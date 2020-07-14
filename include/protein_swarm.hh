@@ -7,6 +7,7 @@
 #include <ctime>
 #include <assert.h>
 #include <limits>
+#include <cstdlib> //rand()
 
 //#include <array>
 #include <vector>
@@ -15,9 +16,13 @@
 /*
   CURRENT ASSUMPTIONS
   - N Partcles >= N CPUs. There will never be more than one CPU working on the same particle at the same time
+	- The cost of the simulation >> the cost of running this code. This is not optimized for runtime performance.
 */
 
-#define rand_01 ((float)rand() / (float)RAND_MAX)
+template< typename Value >
+rand_01(){
+	return Value( rand() ) / Value( RAND_MAX );
+}
 
 namespace protein_swarm {
 
@@ -88,8 +93,8 @@ private:
 	Value best_score_ = std::numeric_limits< Value >::max();
 	std::vector< Value > best_position_; //Keep empty until it is set
 
-	bool current_score_is_being_evaluated_ = true;
-	//This is true when the current_position_ has been set to the new value but the current_score_ has not been calculated yet. current_score_is_being_evaluated_ == true means that the job is currently in flight
+	bool current_score_is_outdated_ = true;
+	//This is true when the current_position_ has been set to the new value but the current_score_ has not been calculated yet. current_score_is_outdated_ == true means that the job is currently in flight
 
 public:
 	//ParticleInfo() = default;
@@ -119,16 +124,55 @@ public:
 	update_to_new_position(
 		std::vector< Value > const & global_best_position,
 		std::vector< Value > const & lower_bounds,
-		std::vector< Value > const & upper_bounds
+		std::vector< Value > const & upper_bounds,
+		float const fraction_of_run_completed // [0.0, 1.0)
 	){
 		assert( ! current_position_.empty() ); //Did you call initialize()?
-		assert( ! current_speed_.empty() ); //Did you call initialize()?
+		//assert( ! current_speed_.empty() ); //Did you call initialize()?
+
+		assert( global_best_position.size() == current_position_.size() );
+		assert( lower_bounds.size() == current_position_.size() );
+		assert( upper_bounds.size() == current_position_.size() );
+		assert( current_speed_.size() == current_position_.size() );
+		assert( best_position_.size() == current_position_.size() );
+
+		static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
+
+		//w = 0.9 - ( (0.7 * t) / numofiterations);
+		//w = k1 - ( k2 * fraction_of_run_completed);
+		constexpr Value k1 = 0.9;
+		constexpr Value k2 = 0.7;
+		Value const W = k1 - ( k2 * fraction_of_run_completed );
+
+		constexpr Value c1 = 2.0; //not sure what to think of this
+		constexpr Value c2 = 2.0; //not sure what to think of this
 
 		//sample a new position
 		uint const ndim = current_position_.size();
 		for( uint d = 0; d < ndim; ++d ){
-			Value velocity = 
+			//V[i][j] = min(max((w * V[i][j] + rand_01 * c1 * (pbests[i][j] - X[i][j]) + rand_01 * c2 * (gbest[j] - X[i][j])), Vmin[j]), Vmax[j]);
+			Value const unbounded_velocity =
+				W * current_speed_[ d ] +
+				rand_01< Value >() * c1 * (best_position_[ d ] - current_position_[ d ]) +
+				rand_01< Value >() * c2 * (global_best_position[ d ] - current_position_[ d ]);
+
+			//apply velocity limits
+			constexpr Value v_limit_frac = 0.2;
+			Value const max_v = v_limit_frac * ( upper_bounds[ d ] - lower_bounds[ d ] );
+			Value const min_v = -1.0 * max_v;
+
+			current_speed_[ d ] =
+				std::min( std::max( unbounded_velocity, min_v ), max_v );
+
+			current_position_[ d ] += current_speed_[ d ];
+
+			//apply bounds
+			current_position_[ d ] = std::min(
+				std::max( current_position_[ d ], lower_bounds[ d ] ),
+				upper_bounds[ d ] );
 		}
+
+		current_score_is_outdated_ = true;
 	}
 
 public: //accessors
@@ -138,7 +182,7 @@ public: //accessors
 
 	void set_current_score( Value v ){
 		current_score_ = v;
-		current_score_is_being_evaluated_ = false;
+		current_score_is_outdated_ = false;
 	}
 
 	std::vector< Value > const & get_current_position() const {
@@ -190,6 +234,27 @@ public: //accessors
 //THIS IS NOT THREADSAFE
 template< typename Value = double >
 class ProteinSwarm {
+	static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
+
+private:
+  uint n_particles_;
+	uint ndim_;
+
+	//ParticleInfo holds location, history, and score info for each particle
+	std::vector< ParticleInfo< Value > > particles_;
+  uint index_of_global_best_ = 0;
+
+	//The particle queue holds a list of particles that are ready to be sampled
+	std::queue< uint > particle_queue_;
+
+  //bool bounded_ = false;
+  std::vector< Value > lower_bounds_;
+  std::vector< Value > upper_bounds_;
+
+  //uint njobs_submitted_ = 0;
+  uint n_asks_ = 0;
+	uint n_tells_ = 0;
+
 
   struct Sample {
     SampleInfo info;
@@ -263,25 +328,6 @@ protected:
     }
     //TODO
   }
-
-private:
-  uint n_particles_;
-	uint ndim_;
-
-	//ParticleInfo holds location, history, and score info for each particle
-	std::vector< ParticleInfo > particles_;
-  uint index_of_global_best_ = 0;
-
-	//The particle queue holds a list of particles that are ready to be sampled
-	std::queue< uint > particle_queue_;
-
-  //bool bounded_ = false;
-  std::vector< Value > lower_bounds_;
-  std::vector< Value > upper_bounds_;
-
-  //uint njobs_submitted_ = 0;
-  uint n_asks_ = 0;
-	uint n_tells_ = 0;
 
 };
 
