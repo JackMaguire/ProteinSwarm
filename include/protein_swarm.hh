@@ -17,6 +17,7 @@
   CURRENT ASSUMPTIONS
   - N Partcles >= N CPUs. There will never be more than one CPU working on the same particle at the same time
 	- The cost of the simulation >> the cost of running this code. This is not optimized for runtime performance.
+	- You are currently required to provide bounds
 */
 
 template< typename Value >
@@ -96,8 +97,9 @@ private:
 	bool current_score_is_outdated_ = true;
 	//This is true when the current_position_ has been set to the new value but the current_score_ has not been calculated yet. current_score_is_outdated_ == true means that the job is currently in flight
 
+	bool has_moved_at_least_once_ = false;
+
 public:
-	//ParticleInfo() = default;
 	ParticleInfo( ParticleInfo const & ) = default;
 	ParticleInfo( ParticleInfo && ) = default;
 
@@ -136,6 +138,14 @@ public:
 		assert( current_speed_.size() == current_position_.size() );
 		assert( best_position_.size() == current_position_.size() );
 
+		current_score_is_outdated_ = true;
+
+		if( ! has_moved_at_least_once_ ){
+			//skip the first move
+			has_moved_at_least_once_ = true;
+			return;
+		}
+
 		static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
 
 		//w = 0.9 - ( (0.7 * t) / numofiterations);
@@ -172,7 +182,6 @@ public:
 				upper_bounds[ d ] );
 		}
 
-		current_score_is_outdated_ = true;
 	}
 
 public: //accessors
@@ -183,6 +192,9 @@ public: //accessors
 	void set_current_score( Value v ){
 		current_score_ = v;
 		current_score_is_outdated_ = false;
+		if( current_score_ < best_score_ ){
+			best_position_ = current_position_;
+		}
 	}
 
 	std::vector< Value > const & get_current_position() const {
@@ -242,7 +254,9 @@ private:
 
 	//ParticleInfo holds location, history, and score info for each particle
 	std::vector< ParticleInfo< Value > > particles_;
+
   uint index_of_global_best_ = 0;
+	Value global_best_score_ = std::numeric_limits< Value >::max();
 
 	//The particle queue holds a list of particles that are ready to be sampled
 	std::queue< uint > particle_queue_;
@@ -256,19 +270,21 @@ private:
 	uint n_tells_ = 0;
 
 
+public:
   struct Sample {
     SampleInfo info;
     std::vector< Value > value;
   };
 
-public:
   ProteinSwarm(
     uint const n_particles,
+		uint const ndim,
     std::vector< Value > const & lower_bounds,
     std::vector< Value > const & upper_bounds,
     InitialSamplingMethod const sampling_method = UNIFORM
   ):
     n_particles_( n_particles ),
+		ndim_( ndim ),
     lower_bounds_( lower_bounds ),
     upper_bounds_( upper_bounds )
   {
@@ -283,11 +299,18 @@ public:
   }
 
 	Sample ask(){
+		++n_asks_;
+
 		assert( ! particle_queue_.empty() );
 		uint const particle = particle_queue_.front();
 		particle_queue_.pop();
-		//TODO
-		++n_asks_;
+
+		particles_[ particle ].update_to_new_position();
+
+		Sample s;
+		s.info.particle = particle;
+		s.value = particles_[ particle ].get_current_position();
+		return s;
 	}
 
   void tell(
@@ -301,8 +324,15 @@ public:
     SampleInfo const info,
     Value const score
   ){
-    //TODO
 		++n_tells;
+		particles_[ info.particle ].set_current_score( score );
+
+		if( score < global_best_score_ ){
+			index_of_global_best_ = info.particle;
+			global_best_score_ = score;
+		}
+
+		particle_queue_.push( info.particle );
   }
 
 public://getters and setters
@@ -318,21 +348,36 @@ protected:
   void initialize(
     ParticleInitialzer const & initializer
   ){
+		assert( ndim_ > 0 );
+		assert( n_particles_ > 0 );
+		assert( ! lower_bounds_.empty() );
+		assert( ! upper_bounds_.empty() );
+
     particles_.resize( n_particles_ );
     for( uint i = 0; i < n_particles_; ++i ){
 			particle_queue_.push( i );
 
-			particles_[ i ].current_position
+			std::vector< Value > const starting_position = initializer.initialize_one_particle( n_particles_, i, lower_bounds_, upper_bounds_ );
 
-      //current_positions_[ i ] = initializer.initialize_one_particle(	n_particles_, i, lower_bounds_, upper_bounds_ );
+			std::vector< Value > starting_velocity( ndim_ );
+			for( uint d = 0; d < ndim_; ++d ){
+				Value const span = upper_bounds_[ d ] - lower_bounds_[ d ];
+				constexpr Value span_coeff = 0.25;
+				Value const vec = ( span * span_coeff ) //scale magnitude of V to range size
+					* ( 2*rand_01() - 1.0); // adjust to ( -25% to 25% )
+				starting_velocity[ d ] = vec;
+			}
+
+			particles_[ i ].initialize( starting_position, starting_velocity );
+
     }
-    //TODO
   }
 
 };
 
 }
 
+/*
 const int numofdims = 30;
 const int numofparticles = 50;
 
@@ -454,6 +499,7 @@ int main()
   cout<<"fitness: "<<gbestfit<<endl;
   return 0;
 }
+*/
 
 // Reading:
 // https://stackoverflow.com/questions/11852577/my-particle-swarm-optimization-code-generates-different-answers-in-c-and-matla
