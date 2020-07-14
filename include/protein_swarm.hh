@@ -331,14 +331,19 @@ public:
     //TODO
   }
 
-	Sample ask(){
+	Sample ask( float const fraction_of_run_completed ){
 		++n_asks_;
 
 		assert( ! particle_queue_.empty() );
 		uint const particle = particle_queue_.front();
 		particle_queue_.pop();
 
-		particles_[ particle ].update_to_new_position();
+		particles_[ particle ].update_to_new_position(
+			particles_[ index_of_global_best_ ].get_current_position(),
+			lower_bounds_,
+			upper_bounds_,
+			fraction_of_run_completed
+		);
 
 		Sample s;
 		s.info.particle = particle;
