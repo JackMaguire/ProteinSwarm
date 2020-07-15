@@ -18,6 +18,7 @@
   - N Partcles >= N CPUs. There will never be more than one CPU working on the same particle at the same time
 	- The cost of the simulation >> the cost of running this code. This is not optimized for runtime performance.
 	- You are currently required to provide bounds
+	- This is not internally thread safe, you may want to wrap a mutex around your ProteinSwarm object
 */
 
 namespace protein_swarm {
@@ -135,16 +136,6 @@ struct SampleInfo {
 
 //This is one case where array of struct appears to be better than struct of array
 class Particle {
-private:
-	Value current_score_ = std::numeric_limits< Value >::max();
-	std::vector< Value > current_position_; //Keep empty until it is set
-	std::vector< Value > current_speed_;
-
-	Value best_score_ = std::numeric_limits< Value >::max();
-	std::vector< Value > best_position_; //Keep empty until it is set
-
-	bool current_score_is_outdated_ = true;
-	//This is true when the current_position_ has been set to the new value but the current_score_ has not been calculated yet. current_score_is_outdated_ == true means that the job is currently in flight
 
 public:
 	Particle( Particle const & ) = default;
@@ -231,11 +222,66 @@ public: //accessors
 		best_position_ = v;
 	}
 
+private:
+	Value current_score_ = std::numeric_limits< Value >::max();
+	std::vector< Value > current_position_; //Keep empty until it is set
+	std::vector< Value > current_speed_;
+
+	Value best_score_ = std::numeric_limits< Value >::max();
+	std::vector< Value > best_position_; //Keep empty until it is set
+
+	bool current_score_is_outdated_ = true;
+	//This is true when the current_position_ has been set to the new value but the current_score_ has not been calculated yet. current_score_is_outdated_ == true means that the job is currently in flight
+
 };
 
 //THIS IS NOT THREADSAFE
 class ProteinSwarm {
 	static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
+
+public:
+  struct Sample {
+    SampleInfo info;
+    std::vector< Value > value;
+  };
+
+  ProteinSwarm(
+    uint const n_particles,
+		uint const ndim,
+    std::vector< Value > const & lower_bounds,
+    std::vector< Value > const & upper_bounds,
+    InitialSamplingMethod const sampling_method = InitialSamplingMethod::UNIFORM
+  );
+
+  void reset(){
+    //TODO
+  }
+
+	Sample ask( float const fraction_of_run_completed );
+
+  void tell( Sample const & sample, Value const score ){
+    tell( sample.info, score );
+  }
+
+  void tell( SampleInfo const info, Value const score );
+
+public://getters and setters
+  uint get_n_particles() const {
+    return n_particles_;
+  }
+
+  void set_n_particles( uint setting ){
+    n_particles_ = setting;
+  }
+
+protected:
+  void initialize( ParticleInitialzer const & initializer );
+
+	void
+	update_to_new_position(
+		uint const particle_id,
+		float const fraction_of_run_completed // [0.0, 1.0)
+	);
 
 private:
   uint n_particles_;
@@ -259,185 +305,6 @@ private:
   uint n_asks_ = 0;
 	uint n_tells_ = 0;
 
-
-public:
-  struct Sample {
-    SampleInfo info;
-    std::vector< Value > value;
-  };
-
-  ProteinSwarm(
-    uint const n_particles,
-		uint const ndim,
-    std::vector< Value > const & lower_bounds,
-    std::vector< Value > const & upper_bounds,
-    InitialSamplingMethod const sampling_method = InitialSamplingMethod::UNIFORM
-  ):
-    n_particles_( n_particles ),
-		ndim_( ndim ),
-    lower_bounds_( lower_bounds ),
-    upper_bounds_( upper_bounds )
-  {
-		assert( lower_bounds.size() == ndim );
-		assert( upper_bounds.size() == ndim );
-
-    switch( sampling_method ){
-		case( InitialSamplingMethod::UNIFORM ):
-			UniformParticleInitialzer init;
-			initialize( init );
-			break;
-    }
-  }
-
-  void reset(){
-    //TODO
-  }
-
-	Sample ask( float const fraction_of_run_completed ){
-		++n_asks_;
-
-		assert( ! particle_queue_.empty() );
-		uint const particle = particle_queue_.front();
-		particle_queue_.pop();
-
-		particles_[ particle ].update_to_new_position(
-			particles_[ index_of_global_best_ ].get_current_position(),
-			lower_bounds_,
-			upper_bounds_,
-			fraction_of_run_completed
-		);
-
-		Sample s;
-		s.info.particle = particle;
-		s.value = particles_[ particle ].get_current_position();
-		return s;
-	}
-
-  void tell(
-    Sample const & sample,
-    Value const score
-  ){
-    tell( sample.info, score );
-  }
-
-  void tell(
-    SampleInfo const info,
-    Value const score
-  ){
-		++n_tells_;
-		particles_[ info.particle ].set_current_score( score );
-
-		if( score < global_best_score_ ){
-			index_of_global_best_ = info.particle;
-			global_best_score_ = score;
-		}
-
-		particle_queue_.push( info.particle );
-  }
-
-public://getters and setters
-  uint get_n_particles() const {
-    return n_particles_;
-  }
-
-  void set_n_particles( uint setting ){
-    n_particles_ = setting;
-  }
-
-protected:
-  void initialize(
-    ParticleInitialzer const & initializer
-  ){
-		assert( ndim_ > 0 );
-		assert( n_particles_ > 0 );
-		assert( ! lower_bounds_.empty() );
-		assert( ! upper_bounds_.empty() );
-
-    particles_.resize( n_particles_ );
-    for( uint i = 0; i < n_particles_; ++i ){
-			particle_queue_.push( i );
-
-			std::vector< Value > const starting_position = initializer.initialize_one_particle( ndim_, n_particles_, i, lower_bounds_, upper_bounds_ );
-
-			std::vector< Value > starting_velocity( ndim_ );
-			for( uint d = 0; d < ndim_; ++d ){
-				Value const span = upper_bounds_[ d ] - lower_bounds_[ d ];
-				constexpr Value span_coeff = 0.25;
-				Value const vec = ( span * span_coeff ) //scale magnitude of V to range size
-					* ( 2*rand_01< Value >() - 1.0); // adjust to ( -25% to 25% )
-				starting_velocity[ d ] = vec;
-			}
-
-			particles_[ i ].initialize( starting_position, starting_velocity );
-
-    }
-  }
-
-	void
-	update_to_new_position(
-		//std::vector< Value > const & global_best_position,
-		//std::vector< Value > const & lower_bounds,
-		//std::vector< Value > const & upper_bounds,
-		uint const particle_id,
-		float const fraction_of_run_completed // [0.0, 1.0)
-	){
-		Partcile & particle = particles_[ particle_id ];
-
-		assert( ! particle.get_current_position().empty() ); //Did you call initialize()?
-		assert( particle.get_current_speed().size()  == particle.get_current_position().size() );
-
-		assert( bounds_.size() == particle.get_current_position().size() );
-		assert( best_position_.size() == particle.get_current_position().size() );
-
-		std::vector< Value > const & global_best_position = particles_[ index_of_global_best_ ].get_best_position();
-		assert( global_best_position.size() == particle.get_current_position().size() );
-
-		current_score_is_outdated_ = true;
-
-		if( ! has_moved_at_least_once_ ){
-			//skip the first move
-			has_moved_at_least_once_ = true;
-			return;
-		}
-
-		static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
-
-		//w = 0.9 - ( (0.7 * t) / numofiterations);
-		//w = k1 - ( k2 * fraction_of_run_completed);
-		constexpr Value k1 = 0.9;
-		constexpr Value k2 = 0.7;
-		Value const W = k1 - ( k2 * fraction_of_run_completed );
-
-		constexpr Value c1 = 2.0; //not sure what to think of this
-		constexpr Value c2 = 2.0; //not sure what to think of this
-
-		//sample a new position
-		uint const ndim = current_position_.size();
-		for( uint d = 0; d < ndim; ++d ){
-			//V[i][j] = min(max((w * V[i][j] + rand_01 * c1 * (pbests[i][j] - X[i][j]) + rand_01 * c2 * (gbest[j] - X[i][j])), Vmin[j]), Vmax[j]);
-			Value const unbounded_velocity =
-				W * current_speed_[ d ] +
-				rand_01() * c1 * (best_position_[ d ] - current_position_[ d ]) +
-				rand_01() * c2 * (global_best_position[ d ] - current_position_[ d ]);
-
-			//apply velocity limits
-			constexpr Value v_limit_frac = 0.2;
-			Value const max_v = v_limit_frac * ( upper_bounds[ d ] - lower_bounds[ d ] );
-			Value const min_v = -1.0 * max_v;
-
-			current_speed_[ d ] =
-				std::min( std::max( unbounded_velocity, min_v ), max_v );
-
-			current_position_[ d ] += current_speed_[ d ];
-
-			//apply bounds
-			current_position_[ d ] = std::min(
-				std::max( current_position_[ d ], lower_bounds[ d ] ),
-				upper_bounds[ d ] );
-		}
-
-	}
-
 };
 
 inline
@@ -451,6 +318,155 @@ UniformParticleInitialzer::initialize_one_particle(
 		vec[ d ] = bounds[ d ].lower_bound + ( bounds[d].span() * rand_01() );
 	}
 	return vec;
+}
+
+inline
+ProteinSwarm::ProteinSwarm(
+	uint const n_particles,
+	uint const ndim,
+	std::vector< Bounds > const & bounds,
+	InitialSamplingMethod const sampling_method = InitialSamplingMethod::UNIFORM
+):
+	n_particles_( n_particles ),
+	ndim_( ndim ),
+	bounds_( bounds )
+{
+	assert( bounds.size() == ndim );
+
+	switch( sampling_method ){
+	case( InitialSamplingMethod::UNIFORM ):
+		UniformParticleInitialzer init;
+		initialize( init );
+		break;
+	}
+}
+
+inline
+Sample
+ProteinSwarm::ask( float const fraction_of_run_completed ){
+	++n_asks_;
+
+	assert( ! particle_queue_.empty() );
+	uint const particle = particle_queue_.front();
+	particle_queue_.pop();
+
+	particles_[ particle ].update_to_new_position(
+		particles_[ index_of_global_best_ ].get_current_position(),
+		bounds_,
+		fraction_of_run_completed
+	);
+
+	Sample s;
+	s.info.particle = particle;
+	s.value = particles_[ particle ].get_current_position();
+	return s;
+}
+
+inline
+void
+ProteinSwarm::tell( SampleInfo const info, Value const score ){
+	++n_tells_;
+	particles_[ info.particle ].set_current_score( score );
+
+	if( score < global_best_score_ ){
+		index_of_global_best_ = info.particle;
+		global_best_score_ = score;
+	}
+
+	particle_queue_.push( info.particle );
+}
+
+inline
+void
+ProteinSwarm::initialize(
+	ParticleInitialzer const & initializer
+){
+	assert( ndim_ > 0 );
+	assert( n_particles_ > 0 );
+	assert( ! lower_bounds_.empty() );
+	assert( ! upper_bounds_.empty() );
+
+	particles_.resize( n_particles_ );
+	for( uint i = 0; i < n_particles_; ++i ){
+		particle_queue_.push( i );
+
+		std::vector< Value > const starting_position = initializer.initialize_one_particle( ndim_, n_particles_, i, lower_bounds_, upper_bounds_ );
+
+		std::vector< Value > starting_velocity( ndim_ );
+		for( uint d = 0; d < ndim_; ++d ){
+			Value const span = upper_bounds_[ d ] - lower_bounds_[ d ];
+			constexpr Value span_coeff = 0.25;
+			Value const vec = ( span * span_coeff ) //scale magnitude of V to range size
+				* ( 2*rand_01< Value >() - 1.0); // adjust to ( -25% to 25% )
+			starting_velocity[ d ] = vec;
+		}
+
+		particles_[ i ].initialize( starting_position, starting_velocity );
+
+	}
+}
+
+inline
+void
+ProteinSwarm::update_to_new_position(
+	uint const particle_id,
+	float const fraction_of_run_completed // [0.0, 1.0)
+){
+	Partcile & particle = particles_[ particle_id ];
+
+	assert( ! particle.get_current_position().empty() ); //Did you call initialize()?
+	assert( particle.get_current_speed().size()  == particle.get_current_position().size() );
+
+	assert( bounds_.size() == particle.get_current_position().size() );
+	assert( best_position_.size() == particle.get_current_position().size() );
+
+	std::vector< Value > const & global_best_position = particles_[ index_of_global_best_ ].get_best_position();
+	assert( global_best_position.size() == particle.get_current_position().size() );
+
+	current_score_is_outdated_ = true;
+
+	if( ! has_moved_at_least_once_ ){
+		//skip the first move
+		has_moved_at_least_once_ = true;
+		return;
+	}
+
+	static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
+
+	//w = 0.9 - ( (0.7 * t) / numofiterations);
+	//w = k1 - ( k2 * fraction_of_run_completed);
+	constexpr Value k1 = 0.9;
+	constexpr Value k2 = 0.7;
+	Value const W = k1 - ( k2 * fraction_of_run_completed );
+
+	constexpr Value c1 = 2.0; //not sure what to think of this
+	constexpr Value c2 = 2.0; //not sure what to think of this
+
+	//sample a new position
+	uint const ndim = current_position_.size();
+	for( uint d = 0; d < ndim; ++d ){
+		//V[i][j] = min(max((w * V[i][j] + rand_01 * c1 * (pbests[i][j] - X[i][j]) + rand_01 * c2 * (gbest[j] - X[i][j])), Vmin[j]), Vmax[j]);
+		Value const unbounded_velocity =
+			W * current_speed_[ d ] +
+			rand_01() * c1 * (best_position_[ d ] - current_position_[ d ]) +
+			rand_01() * c2 * (global_best_position[ d ] - current_position_[ d ]);
+
+		//apply velocity limits
+		constexpr Value v_limit_frac = 0.2;
+		Value const max_v = v_limit_frac * ( upper_bounds[ d ] - lower_bounds[ d ] );
+		Value const min_v = -1.0 * max_v;
+
+		current_speed_[ d ] =
+			std::min( std::max( unbounded_velocity, min_v ), max_v );
+
+		current_position_[ d ] += current_speed_[ d ];
+
+		//apply bounds
+		current_position_[ d ] = std::min(
+			std::max( current_position_[ d ], lower_bounds[ d ] ),
+			upper_bounds[ d ] );
+	}
+
 }
 
 
