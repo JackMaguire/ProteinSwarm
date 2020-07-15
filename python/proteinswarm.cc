@@ -63,7 +63,7 @@ struct ProteinSwarmBounds {
     else if( type == "pacman" ) t = BoundsType::PACMAN;
     else throw std::runtime_error( type + " is not an option. Must be 'standard' or 'pacman'" );
 
-    bounds_[ dim ] = t;
+    bounds_[ dim ].type = t;
   }
 
   ProteinSwarm make_pso( int const n_particles ){
