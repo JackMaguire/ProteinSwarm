@@ -76,7 +76,7 @@ struct ProteinSwarmBounds {
   std::vector< Bounds > bounds_;
 };
 
-BOOST_PYTHON_MODULE( protein_swarm )
+BOOST_PYTHON_MODULE( proteinswarm )
 {
   using namespace boost::python;
   Py_Initialize();
