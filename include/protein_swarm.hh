@@ -1,5 +1,7 @@
 // -*- mode:c++;tab-width:2;indent-tabs-mode:t;show-trailing-whitespace:t;rm-trailing-spaces:t -*-
 
+#pragma once
+
 #include <cstring>
 #include <iostream>
 #include <cmath>
@@ -8,6 +10,7 @@
 #include <assert.h>
 #include <limits>
 #include <cstdlib> //rand()
+#include <math.h>
 
 //#include <array>
 #include <vector>
@@ -34,11 +37,30 @@ Value rand_01(){
 	return Value( rand() ) / Value( RAND_MAX );
 }
 
+#ifdef UNIT_TEST
+//Unit tests will sometimes need to assert that an assertion is thrown
+
+//This hack gets the job done
+
+struct ProteinSwarmError{};
+
+void unit_test_assert( bool b ){
+	if( ! b ) throw ProteinSwarmError{};
+}
+
+#undef assert
+
+#define assert( b ) unit_test_assert( b )
+#endif
+
+
 } //anonymous namespace
+
+
 
 enum class BoundsType
 	{
-	 STANDARD, //Can't go aboe the upper bound or below the lower bound
+	 STANDARD, //Can't go above the upper bound or below the lower bound
 
 	 PACMAN //Once you cross the boundary, you appear on the other side.
 	};
@@ -48,7 +70,7 @@ enum class BoundsType
 struct Bounds {
 	Value lower_bound;
 	Value upper_bound;
-	BoundsType type;
+	BoundsType type = BoundsType::STANDARD;
 
 	Value span() const {
 		return upper_bound - lower_bound;
@@ -57,6 +79,13 @@ struct Bounds {
 	Value get_vector( Value source, Value destination ) const;
 
 	Value apply( Value unbounded ) const;
+
+	//assert that the current values are well behaved
+	void verify() const {
+		assert( ! isnan( lower_bound ) );
+		assert( ! isnan( upper_bound ) );
+		assert( lower_bound < upper_bound );
+	};
 };
 
 
@@ -451,6 +480,10 @@ ProteinSwarm::initialize(
 	assert( ndim_ > 0 );
 	assert( n_particles_ > 0 );
 	assert( ! bounds_.empty() );
+
+	for( Bounds const & b : bounds_ ){
+		b.verify();
+	}
 
 	particles_.resize( n_particles_ );
 	for( uint i = 0; i < n_particles_; ++i ){
