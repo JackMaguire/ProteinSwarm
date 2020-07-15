@@ -92,9 +92,9 @@ BOOST_PYTHON_MODULE( proteinswarm )
 
   class_< ProteinSwarmBounds >( "ProteinSwarmBounds" )
     .def( "set_all_lower_bounds", &ProteinSwarmBounds::set_all_lower_bounds )
-    .def( "set_lower_bounds", &ProteinSwarmBounds::set_lower_bounds )
+    .def( "set_lower_bound", &ProteinSwarmBounds::set_lower_bound )
     .def( "set_all_upper_bounds", &ProteinSwarmBounds::set_all_upper_bounds )
-    .def( "set_upper_bounds", &ProteinSwarmBounds::set_upper_bounds )
+    .def( "set_upper_bound", &ProteinSwarmBounds::set_upper_bound )
     .def( "set_all_bounds_type", &ProteinSwarmBounds::set_all_bounds_type )
     .def( "set_bounds_type", &ProteinSwarmBounds::set_bounds_type )
     .def( "make_pso", &ProteinSwarmBounds::make_pso );
