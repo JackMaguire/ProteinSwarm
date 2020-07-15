@@ -124,9 +124,66 @@ struct Bounds {
 	Value span() const {
 		return upper_bound - lower_bound;
 	}
+
+	Value get_vector( Value source, Value destination ) const;
+
+	Value apply( Value unbounded ) const;
 };
 
 
+inline
+Value
+Bounds::get_vector( Value const source, Value const destination ) const {
+	switch( type ){
+	case( BoundsType::STANDARD ):
+		return destination - source;
+	case( BoundsType::PACMAN ):
+		//Example 1:
+		//lower_bound = -1
+		//upper_bound = 1
+		//source = 0.5
+		//destination = -0.75
+		//dist = 1.25
+		//pacman_dist = 0.75
+		//vector = 0.75
+
+		//Example 2:
+		//lower_bound = -1
+		//upper_bound = 1
+		//source = -0.5
+		//destination = 0.75
+		//dist = 1.25
+		//pacman_dist = 0.75
+		//vector = -0.75
+
+		Value const dist = abs( destination - source );
+		Value const pacman_dist = span() - dist;
+
+		if( dist < pacman_dist ) return destination - source;
+
+		//else, use pacman
+		if( destination < source ) //then we want to go in the positive direction
+			return pacman_dist;
+		else //negative direction
+			return -pacman_dist;
+	}
+}
+
+inline
+Value
+Bounds::apply( Value unbounded ) const {
+	switch( type ){
+	case( BoundsType::STANDARD ):
+		return std::min( std::max( unbounded, lower_bounds ),	upper_bound );
+
+	case( BoundsType::PACMAN ):
+		Value const s = span();
+		//using while instead of modulo assuming that we are usually not too far out of bounds
+		while( unbounded > upper_bound ) unbounded -= s;
+		while( unbounded < lower_bound ) unbounded += s;
+		return unbounded;
+	}
+}
 
 struct SampleInfo {
   uint particle;
@@ -248,8 +305,7 @@ public:
   ProteinSwarm(
     uint const n_particles,
 		uint const ndim,
-    std::vector< Value > const & lower_bounds,
-    std::vector< Value > const & upper_bounds,
+    std::vector< Bounds > const & bounds,
     InitialSamplingMethod const sampling_method = InitialSamplingMethod::UNIFORM
   );
 
@@ -296,15 +352,10 @@ private:
 	//The particle queue holds a list of particles that are ready to be sampled
 	std::queue< uint > particle_queue_;
 
-  //bool bounded_ = false;
-  //std::vector< Value > lower_bounds_;
-  //std::vector< Value > upper_bounds_;
 	std::vector< Bounds > bounds_;
 
-  //uint njobs_submitted_ = 0;
   uint n_asks_ = 0;
 	uint n_tells_ = 0;
-
 };
 
 inline
@@ -331,7 +382,7 @@ ProteinSwarm::ProteinSwarm(
 	ndim_( ndim ),
 	bounds_( bounds )
 {
-	assert( bounds.size() == ndim );
+	assert( bounds_.size() == ndim );
 
 	switch( sampling_method ){
 	case( InitialSamplingMethod::UNIFORM ):
@@ -350,11 +401,11 @@ ProteinSwarm::ask( float const fraction_of_run_completed ){
 	uint const particle = particle_queue_.front();
 	particle_queue_.pop();
 
-	particles_[ particle ].update_to_new_position(
-		particles_[ index_of_global_best_ ].get_current_position(),
-		bounds_,
-		fraction_of_run_completed
-	);
+	//if this is true then every particle has been scored at least once
+	if( n_asks_ > n_particles_ ){
+		//Move the particle if this is not its initial measurement
+		update_to_new_position(	particle,	fraction_of_run_completed );
+	}
 
 	Sample s;
 	s.info.particle = particle;
@@ -383,28 +434,27 @@ ProteinSwarm::initialize(
 ){
 	assert( ndim_ > 0 );
 	assert( n_particles_ > 0 );
-	assert( ! lower_bounds_.empty() );
-	assert( ! upper_bounds_.empty() );
+	assert( ! bounds_.empty() );
 
 	particles_.resize( n_particles_ );
 	for( uint i = 0; i < n_particles_; ++i ){
 		particle_queue_.push( i );
 
-		std::vector< Value > const starting_position = initializer.initialize_one_particle( ndim_, n_particles_, i, lower_bounds_, upper_bounds_ );
+		std::vector< Value > const starting_position =
+			initializer.initialize_one_particle( ndim_, n_particles_, i, bounds_ );
 
 		std::vector< Value > starting_velocity( ndim_ );
 		for( uint d = 0; d < ndim_; ++d ){
-			Value const span = upper_bounds_[ d ] - lower_bounds_[ d ];
 			constexpr Value span_coeff = 0.25;
-			Value const vec = ( span * span_coeff ) //scale magnitude of V to range size
-				* ( 2*rand_01< Value >() - 1.0); // adjust to ( -25% to 25% )
+			Value const vec = ( bounds_[ d ].span() * span_coeff ) //scale magnitude of V to range size
+				* ( 2*rand_01() - 1.0); // adjust to ( -25% to 25% )
 			starting_velocity[ d ] = vec;
 		}
 
 		particles_[ i ].initialize( starting_position, starting_velocity );
+	}//for i
 
-	}
-}
+}//initialize
 
 inline
 void
@@ -446,14 +496,20 @@ ProteinSwarm::update_to_new_position(
 	uint const ndim = current_position_.size();
 	for( uint d = 0; d < ndim; ++d ){
 		//V[i][j] = min(max((w * V[i][j] + rand_01 * c1 * (pbests[i][j] - X[i][j]) + rand_01 * c2 * (gbest[j] - X[i][j])), Vmin[j]), Vmax[j]);
+		Value const vec_to_local_best =
+			bounds_[d].get_vector( current_position_[d], best_position_[d] );
+
+		Value const vec_to_global_best =
+			bounds_[d].get_vector( current_position_[d], global_best_position[d] );
+
 		Value const unbounded_velocity =
 			W * current_speed_[ d ] +
-			rand_01() * c1 * (best_position_[ d ] - current_position_[ d ]) +
-			rand_01() * c2 * (global_best_position[ d ] - current_position_[ d ]);
+			rand_01() * c1 * vec_to_local_best +
+			rand_01() * c2 * vec_to_global_best;
 
 		//apply velocity limits
 		constexpr Value v_limit_frac = 0.2;
-		Value const max_v = v_limit_frac * ( upper_bounds[ d ] - lower_bounds[ d ] );
+		Value const max_v = v_limit_frac * bounds_[ d ].span();
 		Value const min_v = -1.0 * max_v;
 
 		current_speed_[ d ] =
@@ -462,9 +518,7 @@ ProteinSwarm::update_to_new_position(
 		current_position_[ d ] += current_speed_[ d ];
 
 		//apply bounds
-		current_position_[ d ] = std::min(
-			std::max( current_position_[ d ], lower_bounds[ d ] ),
-			upper_bounds[ d ] );
+		current_position_[ d ] = bounds_[ d ].apply( current_position_[ d ] );
 	}
 
 }
