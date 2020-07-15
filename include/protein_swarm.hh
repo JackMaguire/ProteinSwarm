@@ -429,6 +429,7 @@ ProteinSwarm::ProteinSwarm(
 	ndim_( ndim ),
 	bounds_( bounds )
 {
+	srand(time(NULL));
 	assert( bounds_.size() == ndim );
 
 	switch( sampling_method ){
