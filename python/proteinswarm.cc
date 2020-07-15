@@ -27,7 +27,7 @@ struct ProteinSwarmBounds {
     }
   }
 
-  void set_all_lower_bounds( int const dim, double const lb ){
+  void set_lower_bound( int const dim, double const lb ){
     bounds_[ dim ].lower_bound = lb;
   }
 
@@ -37,7 +37,7 @@ struct ProteinSwarmBounds {
     }
   }
 
-  void set_all_upper_bounds( int const dim, double const ub ){
+  void set_upper_bound( int const dim, double const ub ){
     bounds_[ dim ].upper_bound = ub;
   }
 
