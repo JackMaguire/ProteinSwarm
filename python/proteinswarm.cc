@@ -79,7 +79,7 @@ std::vector<double> myfunc(...);
 //https://stackoverflow.com/questions/10701514/how-to-return-numpy-array-from-boostpython
 np::ndarray
 extract_data( Sample sample ) {
-  Py_intptr_t shape[1] = { sample.value.size() };
+  Py_intptr_t shape[1] = { (Py_intptr_t) sample.value.size() };
   np::ndarray result = np::zeros(1, shape, np::dtype::get_builtin<double>());
   std::copy( sample.value.begin(), sample.value.end(), reinterpret_cast<double*>(result.get_data() ) );
   return result;
