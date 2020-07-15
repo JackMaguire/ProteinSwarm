@@ -36,6 +36,30 @@ Value rand_01(){
 
 } //anonymous namespace
 
+enum class BoundsType
+	{
+	 STANDARD, //Can't go aboe the upper bound or below the lower bound
+
+	 PACMAN //Once you cross the boundary, you appear on the other side.
+	};
+
+
+
+struct Bounds {
+	Value lower_bound;
+	Value upper_bound;
+	BoundsType type;
+
+	Value span() const {
+		return upper_bound - lower_bound;
+	}
+
+	Value get_vector( Value source, Value destination ) const;
+
+	Value apply( Value unbounded ) const;
+};
+
+
 
 //Commenting out enums that are not implemented yet
 enum class InitialSamplingMethod
@@ -82,7 +106,7 @@ public:
 		uint ndim,//How many dimensions does this case have?
     uint n_total_particles, //How many particles are in the system?
     uint particle_id, //which particle are we considering now? Ranging from [ 0, n_total_particles-1 ] inclusive
-    std::vector< Bounds > const & bounds,//these are the bounds, which the user probably already knows anyways
+    std::vector< Bounds > const & bounds//these are the bounds, which the user probably already knows anyways
   ) const = 0; //returns the starting values for each dimension for this particle
 
 };
@@ -105,30 +129,6 @@ public:
   ) const override;
 };
 
-
-
-enum class BoundsType
-	{
-	 STANDARD, //Can't go aboe the upper bound or below the lower bound
-
-	 PACMAN //Once you cross the boundary, you appear on the other side.
-	};
-
-
-
-struct Bounds {
-	Value lower_bound;
-	Value upper_bound;
-	BoundsType type;
-
-	Value span() const {
-		return upper_bound - lower_bound;
-	}
-
-	Value get_vector( Value source, Value destination ) const;
-
-	Value apply( Value unbounded ) const;
-};
 
 struct SampleInfo {
   uint particle;
@@ -245,15 +245,16 @@ private:
 
 };
 
+struct Sample {
+	SampleInfo info;
+	std::vector< Value > value;
+};
+
 //THIS IS NOT THREADSAFE
 class ProteinSwarm {
 	static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
 
 public:
-  struct Sample {
-    SampleInfo info;
-    std::vector< Value > value;
-  };
 
   ProteinSwarm(
     uint const n_particles,
@@ -362,7 +363,7 @@ Value
 Bounds::apply( Value unbounded ) const {
 	switch( type ){
 	case( BoundsType::STANDARD ):
-		return std::min( std::max( unbounded, lower_bounds ),	upper_bound );
+		return std::min( std::max( unbounded, lower_bound ),	upper_bound );
 
 	case( BoundsType::PACMAN ):
 		Value const s = span();
@@ -391,7 +392,7 @@ ProteinSwarm::ProteinSwarm(
 	uint const n_particles,
 	uint const ndim,
 	std::vector< Bounds > const & bounds,
-	InitialSamplingMethod const sampling_method = InitialSamplingMethod::UNIFORM
+	InitialSamplingMethod const sampling_method
 ):
 	n_particles_( n_particles ),
 	ndim_( ndim ),
@@ -477,16 +478,17 @@ ProteinSwarm::update_to_new_position(
 	uint const particle_id,
 	float const fraction_of_run_completed // [0.0, 1.0)
 ){
-	Partcile & particle = particles_[ particle_id ];
+	Particle & particle = particles_[ particle_id ];
 
 	assert( ! particle.get_current_position().empty() ); //Did you call initialize()?
 	assert( particle.get_current_speed().size()  == particle.get_current_position().size() );
+	assert( particle.get_best_position().size() == particle.get_current_position().size() );
 
-	assert( bounds_.size() == particle.get_current_position().size() );
-	assert( best_position_.size() == particle.get_current_position().size() );
 
 	std::vector< Value > const & global_best_position = particles_[ index_of_global_best_ ].get_best_position();
+
 	assert( global_best_position.size() == particle.get_current_position().size() );
+	assert( bounds_.size() == particle.get_current_position().size() );
 
 	particle.set_current_score_is_outdated( true );
 
