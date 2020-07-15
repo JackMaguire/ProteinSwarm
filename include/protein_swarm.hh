@@ -130,61 +130,6 @@ struct Bounds {
 	Value apply( Value unbounded ) const;
 };
 
-
-inline
-Value
-Bounds::get_vector( Value const source, Value const destination ) const {
-	switch( type ){
-	case( BoundsType::STANDARD ):
-		return destination - source;
-	case( BoundsType::PACMAN ):
-		//Example 1:
-		//lower_bound = -1
-		//upper_bound = 1
-		//source = 0.5
-		//destination = -0.75
-		//dist = 1.25
-		//pacman_dist = 0.75
-		//vector = 0.75
-
-		//Example 2:
-		//lower_bound = -1
-		//upper_bound = 1
-		//source = -0.5
-		//destination = 0.75
-		//dist = 1.25
-		//pacman_dist = 0.75
-		//vector = -0.75
-
-		Value const dist = abs( destination - source );
-		Value const pacman_dist = span() - dist;
-
-		if( dist < pacman_dist ) return destination - source;
-
-		//else, use pacman
-		if( destination < source ) //then we want to go in the positive direction
-			return pacman_dist;
-		else //negative direction
-			return -pacman_dist;
-	}
-}
-
-inline
-Value
-Bounds::apply( Value unbounded ) const {
-	switch( type ){
-	case( BoundsType::STANDARD ):
-		return std::min( std::max( unbounded, lower_bounds ),	upper_bound );
-
-	case( BoundsType::PACMAN ):
-		Value const s = span();
-		//using while instead of modulo assuming that we are usually not too far out of bounds
-		while( unbounded > upper_bound ) unbounded -= s;
-		while( unbounded < lower_bound ) unbounded += s;
-		return unbounded;
-	}
-}
-
 struct SampleInfo {
   uint particle;
 };
@@ -247,6 +192,10 @@ public: //accessors
 		current_position_ = v;
 	}
 
+	void set_current_position( uint const dim, Value const setting ){
+		current_position_[ dim ] = setting;
+	}
+
 	std::vector< Value > const & get_current_speed() const {
 		return current_speed_;
 	}
@@ -257,6 +206,10 @@ public: //accessors
 
 	void set_current_speed( std::vector< Value > && v ){
 		current_speed_ = v;
+	}
+
+	void set_current_speed( uint const dim, Value const setting ){
+		current_speed_[ dim ] = setting;
 	}
 
 	Value get_best_score() const {
@@ -357,6 +310,68 @@ private:
   uint n_asks_ = 0;
 	uint n_tells_ = 0;
 };
+
+
+
+inline
+Value
+Bounds::get_vector( Value const source, Value const destination ) const {
+	switch( type ){
+	case( BoundsType::STANDARD ):
+		return destination - source;
+	case( BoundsType::PACMAN ):
+		//Example 1:
+		//lower_bound = -1
+		//upper_bound = 1
+		//source = 0.5
+		//destination = -0.75
+		//dist = 1.25
+		//pacman_dist = 0.75
+		//vector = 0.75
+
+		//Example 2:
+		//lower_bound = -1
+		//upper_bound = 1
+		//source = -0.5
+		//destination = 0.75
+		//dist = 1.25
+		//pacman_dist = 0.75
+		//vector = -0.75
+
+		Value const dist = abs( destination - source );
+		Value const pacman_dist = span() - dist;
+
+		if( dist < pacman_dist ) return destination - source;
+
+		//else, use pacman
+		if( destination < source ) //then we want to go in the positive direction
+			return pacman_dist;
+		else //negative direction
+			return -pacman_dist;
+	}
+}
+
+
+
+  // // // //
+// FUNCTIONS //
+  // // // //
+
+inline
+Value
+Bounds::apply( Value unbounded ) const {
+	switch( type ){
+	case( BoundsType::STANDARD ):
+		return std::min( std::max( unbounded, lower_bounds ),	upper_bound );
+
+	case( BoundsType::PACMAN ):
+		Value const s = span();
+		//using while instead of modulo assuming that we are usually not too far out of bounds
+		while( unbounded > upper_bound ) unbounded -= s;
+		while( unbounded < lower_bound ) unbounded += s;
+		return unbounded;
+	}
+}
 
 inline
 std::vector< Value >
@@ -473,13 +488,7 @@ ProteinSwarm::update_to_new_position(
 	std::vector< Value > const & global_best_position = particles_[ index_of_global_best_ ].get_best_position();
 	assert( global_best_position.size() == particle.get_current_position().size() );
 
-	current_score_is_outdated_ = true;
-
-	if( ! has_moved_at_least_once_ ){
-		//skip the first move
-		has_moved_at_least_once_ = true;
-		return;
-	}
+	particle.set_current_score_is_outdated( true );
 
 	static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
 
@@ -493,17 +502,19 @@ ProteinSwarm::update_to_new_position(
 	constexpr Value c2 = 2.0; //not sure what to think of this
 
 	//sample a new position
-	uint const ndim = current_position_.size();
-	for( uint d = 0; d < ndim; ++d ){
+	for( uint d = 0; d < ndim_; ++d ){
+		Value const curr_pos_d = particle.get_current_position()[ d ];
+		Value const best_pos_d = particle.get_best_position()[ d ];
+
 		//V[i][j] = min(max((w * V[i][j] + rand_01 * c1 * (pbests[i][j] - X[i][j]) + rand_01 * c2 * (gbest[j] - X[i][j])), Vmin[j]), Vmax[j]);
 		Value const vec_to_local_best =
-			bounds_[d].get_vector( current_position_[d], best_position_[d] );
+			bounds_[d].get_vector( curr_pos_d, best_pos_d );
 
 		Value const vec_to_global_best =
-			bounds_[d].get_vector( current_position_[d], global_best_position[d] );
+			bounds_[d].get_vector( curr_pos_d, global_best_position[d] );
 
 		Value const unbounded_velocity =
-			W * current_speed_[ d ] +
+			W * particle.get_current_speed()[ d ] +
 			rand_01() * c1 * vec_to_local_best +
 			rand_01() * c2 * vec_to_global_best;
 
@@ -512,13 +523,12 @@ ProteinSwarm::update_to_new_position(
 		Value const max_v = v_limit_frac * bounds_[ d ].span();
 		Value const min_v = -1.0 * max_v;
 
-		current_speed_[ d ] =
+		Value const new_speed =
 			std::min( std::max( unbounded_velocity, min_v ), max_v );
+		particle.set_current_speed( d, new_speed );
 
-		current_position_[ d ] += current_speed_[ d ];
-
-		//apply bounds
-		current_position_[ d ] = bounds_[ d ].apply( current_position_[ d ] );
+		Value const new_pos = bounds_[ d ].apply( curr_pos_d + new_speed );
+		particle.set_current_position( d, new_pos );
 	}
 
 }
