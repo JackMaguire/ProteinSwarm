@@ -83,14 +83,14 @@ BOOST_PYTHON_MODULE( proteinswarm )
   void (ProteinSwarm::*tell_sample)(Sample const &,Value) = &ProteinSwarm::tell;
   void (ProteinSwarm::*tell_sampleinfo)(SampleInfo, Value) = &ProteinSwarm::tell;
 
-  class_< ProteinSwarm >( "ProteinSwarm" )
+  class_< ProteinSwarm >( "ProteinSwarm", init<uint,uint,std::vector< Bounds > const &,InitialSamplingMethod>() )
     .def( "reset", &ProteinSwarm::reset )
     .def( "ask", &ProteinSwarm::ask )
     .def( "tell_sample", tell_sample )
     .def( "tell_sampleinfo", tell_sampleinfo )
     .def( "get_n_particles", &ProteinSwarm::get_n_particles );
 
-  class_< ProteinSwarmBounds >( "ProteinSwarmBounds" )
+  class_< ProteinSwarmBounds >( "ProteinSwarmBounds", init<int>() )
     .def( "set_all_lower_bounds", &ProteinSwarmBounds::set_all_lower_bounds )
     .def( "set_lower_bound", &ProteinSwarmBounds::set_lower_bound )
     .def( "set_all_upper_bounds", &ProteinSwarmBounds::set_all_upper_bounds )
