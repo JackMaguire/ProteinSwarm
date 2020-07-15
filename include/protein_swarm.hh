@@ -11,6 +11,7 @@
 #include <limits>
 #include <cstdlib> //rand()
 #include <math.h>
+#include <chrono>
 
 //#include <array>
 #include <vector>
@@ -429,7 +430,10 @@ ProteinSwarm::ProteinSwarm(
 	ndim_( ndim ),
 	bounds_( bounds )
 {
-	srand(time(NULL));
+	unsigned long microseconds_since_epoch =
+    std::chrono::duration_cast< std::chrono::microseconds >
+		(std::chrono::system_clock::now().time_since_epoch()).count();
+	srand( microseconds_since_epoch );
 	assert( bounds_.size() == ndim );
 
 	switch( sampling_method ){
