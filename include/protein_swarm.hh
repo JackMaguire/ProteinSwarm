@@ -20,15 +20,21 @@
 	- You are currently required to provide bounds
 */
 
-template< typename Value >
-Value rand_01(){
-	return Value( rand() ) / Value( RAND_MAX );
-}
-
 namespace protein_swarm {
 
 using uint = unsigned int;
 using ulong = unsigned long int;
+using Value = double;
+
+
+namespace {
+
+Value rand_01(){
+	return Value( rand() ) / Value( RAND_MAX );
+}
+
+} //anonymous namespace
+
 
 //Commenting out enums that are not implemented yet
 enum class InitialSamplingMethod
@@ -62,7 +68,8 @@ enum class InitialSamplingMethod
    //CUSTOM
   };
 
-template< typename Value = double >
+
+
 class ParticleInitialzer {
 public:
   virtual ~ParticleInitialzer() = default;
@@ -74,14 +81,14 @@ public:
 		uint ndim,//How many dimensions does this case have?
     uint n_total_particles, //How many particles are in the system?
     uint particle_id, //which particle are we considering now? Ranging from [ 0, n_total_particles-1 ] inclusive
-    std::vector< Value > const & lower_bounds,//these are the bounds, which the user probably already knows anyways
-    std::vector< Value > const & upper_bounds
+    std::vector< Bounds > const & bounds,//these are the bounds, which the user probably already knows anyways
   ) const = 0; //returns the starting values for each dimension for this particle
 
 };
 
-template< typename Value = double >
-class UniformParticleInitialzer : public ParticleInitialzer< Value > {
+
+
+class UniformParticleInitialzer : public ParticleInitialzer {
 public:
 	UniformParticleInitialzer() = default;
 
@@ -93,18 +100,11 @@ public:
 		uint ndim,
     uint,
     uint,
-    std::vector< Value > const & lower_bounds,
-    std::vector< Value > const & upper_bounds
-  ) const override {
-		std::vector< Value > vec( ndim );
-		for( uint d = 0; d < ndim; ++d ){
-			vec[ d ] = lower_bounds[ d ] +
-				( (upper_bounds[d]-lower_bounds[d]) * rand_01< Value >() );
-		}
-		return vec;
-	}
-
+    std::vector< Bounds > const & bounds
+  ) const override;
 };
+
+
 
 enum class BoundsType
 	{
@@ -113,19 +113,27 @@ enum class BoundsType
 	 PACMAN //Once you cross the boundary, you appear on the other side.
 	};
 
-template< typename Value = double >
+
+
 struct Bounds {
 	Value lower_bound;
 	Value upper_bound;
-	BoundsType tpye;
+	BoundsType type;
+
+	Value span() const {
+		return upper_bound - lower_bound;
+	}
 };
+
+
 
 struct SampleInfo {
   uint particle;
 };
 
+
+
 //This is one case where array of struct appears to be better than struct of array
-template< typename Value = double >
 class Particle {
 private:
 	Value current_score_ = std::numeric_limits< Value >::max();
@@ -137,8 +145,6 @@ private:
 
 	bool current_score_is_outdated_ = true;
 	//This is true when the current_position_ has been set to the new value but the current_score_ has not been calculated yet. current_score_is_outdated_ == true means that the job is currently in flight
-
-	bool has_moved_at_least_once_ = false;
 
 public:
 	Particle( Particle const & ) = default;
@@ -164,7 +170,12 @@ public:
 	}
 
 public: //accessors
+	void set_current_score_is_outdated( bool setting ){
+		current_score_is_outdated_ = setting;
+	}
+
 	Value get_current_score() const {
+		assert( ! current_score_is_outdated_ );
 		return current_score_;
 	}
 
@@ -223,7 +234,6 @@ public: //accessors
 };
 
 //THIS IS NOT THREADSAFE
-template< typename Value = double >
 class ProteinSwarm {
 	static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
 
@@ -232,7 +242,7 @@ private:
 	uint ndim_;
 
 	//Particle holds location, history, and score info for each particle
-	std::vector< Particle< Value > > particles_;
+	std::vector< Particle > particles_;
 
   uint index_of_global_best_ = 0;
 	Value global_best_score_ = std::numeric_limits< Value >::max();
@@ -273,7 +283,7 @@ public:
 
     switch( sampling_method ){
 		case( InitialSamplingMethod::UNIFORM ):
-			UniformParticleInitialzer< Value > init;
+			UniformParticleInitialzer init;
 			initialize( init );
 			break;
     }
@@ -336,7 +346,7 @@ public://getters and setters
 
 protected:
   void initialize(
-    ParticleInitialzer< Value > const & initializer
+    ParticleInitialzer const & initializer
   ){
 		assert( ndim_ > 0 );
 		assert( n_particles_ > 0 );
@@ -407,8 +417,8 @@ protected:
 			//V[i][j] = min(max((w * V[i][j] + rand_01 * c1 * (pbests[i][j] - X[i][j]) + rand_01 * c2 * (gbest[j] - X[i][j])), Vmin[j]), Vmax[j]);
 			Value const unbounded_velocity =
 				W * current_speed_[ d ] +
-				rand_01< Value >() * c1 * (best_position_[ d ] - current_position_[ d ]) +
-				rand_01< Value >() * c2 * (global_best_position[ d ] - current_position_[ d ]);
+				rand_01() * c1 * (best_position_[ d ] - current_position_[ d ]) +
+				rand_01() * c2 * (global_best_position[ d ] - current_position_[ d ]);
 
 			//apply velocity limits
 			constexpr Value v_limit_frac = 0.2;
@@ -430,7 +440,21 @@ protected:
 
 };
 
+inline
+std::vector< Value >
+UniformParticleInitialzer::initialize_one_particle(
+	uint ndim, uint, uint,
+	std::vector< Bounds > const & bounds
+) const {
+	std::vector< Value > vec( ndim );
+	for( uint d = 0; d < ndim; ++d ){
+		vec[ d ] = bounds[ d ].lower_bound + ( bounds[d].span() * rand_01() );
+	}
+	return vec;
 }
+
+
+} //namespace
 
 /*
 const int numofdims = 30;
