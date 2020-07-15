@@ -17,9 +17,7 @@ namespace p = boost::python;
 namespace np = boost::python::numpy;
 
 struct ProteinSwarmBounds {
-  ProteinSwarmBounds( int ndim ):
-    ndim_( ndim )
-  {
+  ProteinSwarmBounds( int ndim ) {
     bounds_.resize( ndim );
   }
 
