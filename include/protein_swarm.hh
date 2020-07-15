@@ -378,9 +378,8 @@ Bounds::get_vector( Value const source, Value const destination ) const {
 			return pacman_dist;
 		else //negative direction
 			return -pacman_dist;
-
-		assert( false ); //dead code
 	}
+	assert( false ); //dead code
 }
 
 
