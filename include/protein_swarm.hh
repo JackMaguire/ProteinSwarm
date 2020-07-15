@@ -286,40 +286,40 @@ class ProteinSwarm {
 public:
 
   ProteinSwarm(
-    uint const n_particles,
-		uint const ndim,
+    uint n_particles,
+		uint ndim,
     std::vector< Bounds > const & bounds,
-    InitialSamplingMethod const sampling_method = InitialSamplingMethod::UNIFORM
+    InitialSamplingMethod sampling_method = InitialSamplingMethod::UNIFORM
   );
 
   void reset(){
     //TODO
   }
 
-	Sample ask( float const fraction_of_run_completed );
+	Sample ask( float fraction_of_run_completed );
 
-  void tell( Sample const & sample, Value const score ){
+  void tell( Sample const & sample, Value score ){
     tell( sample.info, score );
   }
 
-  void tell( SampleInfo const info, Value const score );
+  void tell( SampleInfo info, Value score );
 
 public://getters and setters
   uint get_n_particles() const {
     return n_particles_;
   }
 
-  void set_n_particles( uint setting ){
+  /*void set_n_particles( uint setting ){
     n_particles_ = setting;
-  }
+  }*/
 
 protected:
   void initialize( ParticleInitialzer const & initializer );
 
 	void
 	update_to_new_position(
-		uint const particle_id,
-		float const fraction_of_run_completed // [0.0, 1.0)
+		uint particle_id,
+		float fraction_of_run_completed // [0.0, 1.0)
 	);
 
 private:
