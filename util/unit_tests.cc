@@ -147,9 +147,53 @@ void run_pacman_bounds_tests(){
 
 }
 
+void run_simple_ask_tell(){
+  std::cout << " - running run_simple_ask_tell()" << std::endl;  
+
+  std::vector< Bounds > bounds( 1 );
+  bounds[ 0 ].lower_bound = 0.0;
+  bounds[ 0 ].upper_bound = 1.0;
+
+  ProteinSwarm optimizer( 2, bounds );
+
+  assert( optimizer.get_n_particles_in_queue() == 2 );
+
+  Sample const x1 = optimizer.ask( 0.0 );
+  assert( x1.info.particle == 0 );
+
+  assert( optimizer.get_n_particles_in_queue() == 1 );
+
+  Sample const x2 = optimizer.ask( 0.0 );
+  assert( x2.info.particle == 1 );
+
+  assert( optimizer.get_n_particles_in_queue() == 0 );
+
+  optimizer.tell( x1, -1.0 );//NEW BEST
+  assert( optimizer.get_index_of_global_best() == 0 );
+  assert( optimizer.get_global_best_position().size() == 1 );
+  assert( optimizer.get_global_best_position()[ 0 ] == x1.value[ 0 ] );
+
+  assert( optimizer.get_n_particles_in_queue() == 1 );
+
+  optimizer.tell( x2, -2.0 );//NEW BEST
+  assert( optimizer.get_index_of_global_best() == 1 );
+  assert( optimizer.get_global_best_position().size() == 1 );
+  assert( optimizer.get_global_best_position()[ 0 ] == x2.value[ 0 ] );
+
+  assert( optimizer.get_n_particles_in_queue() == 2 );
+
+  Sample const x3 = optimizer.ask( 0.0 );
+  assert( x3.info.particle == 0 );
+  optimizer.tell( x2, 0.0 );
+  assert( optimizer.get_index_of_global_best() == 1 ); //NO CHANGE
+  assert( optimizer.get_global_best_position()[ 0 ] == x2.value[ 0 ] ); //NO CHANGE
+
+  assert( optimizer.get_n_particles_in_queue() == 2 );
+}
 
 int main(){
   run_standard_bounds_tests();
   run_pacman_bounds_tests();
+  run_simple_ask_tell();
   std::cout << "All tests passed!" << std::endl;
 }

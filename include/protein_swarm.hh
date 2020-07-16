@@ -159,13 +159,6 @@ public:
   ) const override;
 };
 
-
-struct SampleInfo {
-  uint particle;
-};
-
-
-
 //This is one case where array of struct appears to be better than struct of array
 class Particle {
 
@@ -275,6 +268,10 @@ private:
 
 };
 
+struct SampleInfo {
+  uint particle;
+};
+
 struct Sample {
 	SampleInfo info;
 	std::vector< Value > value;
@@ -288,7 +285,7 @@ public:
 
   ProteinSwarm(
     uint n_particles,
-		uint ndim,
+		//uint ndim,
     std::vector< Bounds > const & bounds,
     InitialSamplingMethod sampling_method = InitialSamplingMethod::UNIFORM
   );
@@ -313,6 +310,24 @@ public://getters and setters
   /*void set_n_particles( uint setting ){
     n_particles_ = setting;
   }*/
+
+	Value get_global_best_score() const {
+		return global_best_score_;
+	}
+
+	std::vector< Value > const &
+	get_global_best_position() const {
+		return particles_[ index_of_global_best_ ].get_best_position();
+	}
+
+public://unit test
+	uint get_index_of_global_best() const {
+		return index_of_global_best_;
+	}
+
+	uint get_n_particles_in_queue() const {
+		return particle_queue_.size();
+	}
 
 protected:
   void initialize( ParticleInitialzer const & initializer );
@@ -426,23 +441,23 @@ UniformParticleInitialzer::initialize_one_particle(
 inline
 ProteinSwarm::ProteinSwarm(
 	uint const n_particles,
-	uint const ndim,
+	//uint const ndim,
 	std::vector< Bounds > const & bounds,
 	InitialSamplingMethod const sampling_method
 ):
 	n_particles_( n_particles ),
-	ndim_( ndim ),
+	ndim_( bounds.size() ),
 	bounds_( bounds )
 {
 	unsigned long microseconds_since_epoch =
     std::chrono::duration_cast< std::chrono::microseconds >
 		(std::chrono::system_clock::now().time_since_epoch()).count();
 	srand( microseconds_since_epoch );
-	assert( bounds_.size() == ndim );
+	assert( bounds_.size() == ndim_ );
 
 	switch( sampling_method ){
 	case( InitialSamplingMethod::UNIFORM ):
-		UniformParticleInitialzer init;
+		UniformParticleInitialzer init; //TODO save as unique_ptr?
 		initialize( init );
 		break;
 	}
