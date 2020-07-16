@@ -60,6 +60,6 @@ def run_worker( comm, rank ):
             comm.send( 0, dest=0, tag=0 )
             break
 
-        final_score = score_dofs( dofs )
+        final_score = score( dofs )
         bundle = [ dofs, final_score ]
         comm.send( bundle, dest=0, tag=1 )
