@@ -6,10 +6,11 @@ import numpy as np
 import random as rand
 #import argparse
 
-import proteinswarm as pso
+from proteinswarm import *
+
 
 def score( dofs ):
-    assert( len( dofs ) == 7 )
+    assert( dofs.shape[0] == 7 )
     total_score = 0.0
     seed = 0
     for ndim in [ 10, 15, 20 ]:
@@ -25,7 +26,7 @@ def score( dofs ):
                 bounds = ProteinSwarmBounds( ndim )
                 bounds.set_all_lower_bounds( -3 )
                 bounds.set_all_upper_bounds( 3 )
-                optimizer = bounds.make_pso( budget_factor/3 )
+                optimizer = bounds.make_pso( int(budget_factor/3) )
 
                 optimizer.set_span_coeff( dofs[ 0 ] )
                 optimizer.set_k1( dofs[ 1 ] )
@@ -60,6 +61,6 @@ def run_worker( comm, rank ):
             comm.send( 0, dest=0, tag=0 )
             break
 
-        final_score = score( dofs )
+        final_score = score( dofs.value )
         bundle = [ dofs, final_score ]
         comm.send( bundle, dest=0, tag=1 )
