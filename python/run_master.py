@@ -49,8 +49,7 @@ def run_master( comm, nprocs, rank, opt, budget, hours ):
     njobs_sent = 0
 
     try:
-        #USER TODO
-        Params = ng.p.Array( shape=(3,) )
+        Params = ng.p.Array( shape=(7,) ).set_bounds( -5, 10 )
         optimizer = ng.optimizers.registry[ opt ]( parametrization=Params, budget=budget, num_workers=(nprocs-1) )
 
         begin = time.time()
