@@ -67,7 +67,7 @@ struct ProteinSwarmBounds {
   }
 
   ProteinSwarm make_pso( int const n_particles ){
-    protein_swarm::ProteinSwarm swarm( n_particles, bounds_.size(), bounds_ );
+    protein_swarm::ProteinSwarm swarm( n_particles, bounds_ );
     return swarm;
   }
 
@@ -89,6 +89,13 @@ extract_data( Sample sample ) {
   return vec_to_np( sample.value );
 }
 
+np::ndarray
+get_best_position( ProteinSwarm const & optimizer ) {
+  //I don't think pass-by-ref works with python
+
+  return vec_to_np( optimizer.get_global_best_position() );
+}
+
 BOOST_PYTHON_MODULE( proteinswarm )
 {
   using namespace boost::python;
@@ -99,15 +106,17 @@ BOOST_PYTHON_MODULE( proteinswarm )
   void (ProteinSwarm::*tell_sampleinfo)(SampleInfo, Value) = &ProteinSwarm::tell;
 
   def( "extract_data", &extract_data );
+  def( "get_best_position", &get_best_position );
   
   class_< Sample >( "Sample" );
 
   
-  class_< ProteinSwarm >( "ProteinSwarm", init<uint,uint,std::vector< Bounds > const &,InitialSamplingMethod>() )
+  class_< ProteinSwarm >( "ProteinSwarm", init<uint,std::vector< Bounds > const &,InitialSamplingMethod>() )
     .def( "reset", &ProteinSwarm::reset )
     .def( "ask", &ProteinSwarm::ask )
     .def( "tell", tell )
     .def( "tell_sampleinfo", tell_sampleinfo )
+    .def( "get_global_best_score", &ProteinSwarm::get_global_best_score )
     .def( "get_n_particles", &ProteinSwarm::get_n_particles );
 
   class_< ProteinSwarmBounds >( "ProteinSwarmBounds", init<int>() )
