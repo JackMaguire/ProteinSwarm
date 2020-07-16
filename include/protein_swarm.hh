@@ -338,7 +338,36 @@ protected:
 		float fraction_of_run_completed // [0.0, 1.0)
 	);
 
-private:
+public://setting parameters
+	void set_span_coeff( Value setting ){ span_coeff_ = setting; }
+	void set_k1( Value setting ){ k1_ = setting; }
+	void set_k2( Value setting ){ k2_ = setting; }
+	void set_c1( Value setting ){ c1_ = setting; }
+	void set_c2( Value setting ){ c2_ = setting; }
+	void set_v_limit_m( Value setting ){ v_limit_m_ = setting; }
+	void set_v_limit_b( Value setting ){ v_limit_b_ = setting; }
+
+	bool parameters_are_reasonable() const {
+		return v_limit_b_ > 0
+			&& (v_limit_b_ + v_limit_m_) > 0
+			&& c1_ > 0 && c2_ > 0
+			&& k1_ > 0 && k2_ > 0
+			&& (k1_ - k2_) > 0
+			&& span_coeff_ > 0;
+	}
+
+private://parameters
+	Value span_coeff_ = 0.25;//see initialize()
+
+	//update_to_new_position
+	Value k1_ = 0.9;
+	Value k2_ = 0.7;
+	Value c1_ = 2.0;
+	Value c2_ = 2.0;
+	Value v_limit_m_ = 0.0;
+	Value v_limit_b_ = 0.2;
+
+private://data
   uint n_particles_;
 	uint ndim_;
 
@@ -356,6 +385,14 @@ private:
   uint n_asks_ = 0;
 	uint n_tells_ = 0;
 };
+
+
+
+
+
+  // // // //
+// FUNCTIONS //
+  // // // //
 
 
 
@@ -402,11 +439,6 @@ Bounds::get_vector( Value source, Value destination ) const {
 	assert( false ); //dead code
 }
 
-
-
-  // // // //
-// FUNCTIONS //
-  // // // //
 
 inline
 Value
@@ -520,8 +552,7 @@ ProteinSwarm::initialize(
 
 		std::vector< Value > starting_velocity( ndim_ );
 		for( uint d = 0; d < ndim_; ++d ){
-			constexpr Value span_coeff = 0.25;
-			Value const vec = ( bounds_[ d ].span() * span_coeff ) //scale magnitude of V to range size
+			Value const vec = ( bounds_[ d ].span() * span_coeff_ ) //scale magnitude of V to range size
 				* ( 2*rand_01() - 1.0); // adjust to ( -25% to 25% )
 			starting_velocity[ d ] = vec;
 		}
@@ -549,25 +580,21 @@ ProteinSwarm::update_to_new_position(
 	assert( global_best_position.size() == particle.get_current_position().size() );
 	assert( bounds_.size() == particle.get_current_position().size() );
 
+	assert( parameters_are_reasonable() );
+
 	particle.set_current_score_is_outdated( true );
 
 	static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
 
 	//w = 0.9 - ( (0.7 * t) / numofiterations);
 	//w = k1 - ( k2 * fraction_of_run_completed);
-	constexpr Value k1 = 0.9;
-	constexpr Value k2 = 0.7;
-	Value const W = k1 - ( k2 * fraction_of_run_completed );
-
-	constexpr Value c1 = 2.0; //not sure what to think of this
-	constexpr Value c2 = 2.0; //not sure what to think of this
+	Value const W = k1_ - ( k2_ * fraction_of_run_completed );
 
 	//sample a new position
 	for( uint d = 0; d < ndim_; ++d ){
 		Value const curr_pos_d = particle.get_current_position()[ d ];
 		Value const best_pos_d = particle.get_best_position()[ d ];
 
-		//V[i][j] = min(max((w * V[i][j] + rand_01 * c1 * (pbests[i][j] - X[i][j]) + rand_01 * c2 * (gbest[j] - X[i][j])), Vmin[j]), Vmax[j]);
 		Value const vec_to_local_best =
 			bounds_[d].get_vector( curr_pos_d, best_pos_d );
 
@@ -576,11 +603,12 @@ ProteinSwarm::update_to_new_position(
 
 		Value const unbounded_velocity =
 			W * particle.get_current_speed()[ d ] +
-			rand_01() * c1 * vec_to_local_best +
-			rand_01() * c2 * vec_to_global_best;
+			rand_01() * c1_ * vec_to_local_best +
+			rand_01() * c2_ * vec_to_global_best;
 
 		//apply velocity limits
-		constexpr Value v_limit_frac = 0.2;
+		Value const v_limit_frac =
+			v_limit_m_ * fraction_of_run_completed + v_limit_b_;
 		Value const max_v = v_limit_frac * bounds_[ d ].span();
 		Value const min_v = -1.0 * max_v;
 
