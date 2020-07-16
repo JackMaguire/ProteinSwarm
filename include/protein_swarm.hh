@@ -346,7 +346,7 @@ private:
 
 inline
 Value
-Bounds::get_vector( Value const source, Value const destination ) const {
+Bounds::get_vector( Value source, Value destination ) const {
 	switch( type ){
 	case( BoundsType::STANDARD ):
 		return destination - source;
@@ -368,6 +368,10 @@ Bounds::get_vector( Value const source, Value const destination ) const {
 		//dist = 1.25
 		//pacman_dist = 0.75
 		//vector = -0.75
+
+		//Apply transformations just in case
+		source = apply( source );
+		destination = apply( destination );
 
 		Value const dist = abs( destination - source );
 		Value const pacman_dist = span() - dist;

@@ -13,7 +13,7 @@
 using namespace protein_swarm;
 
 void run_standard_bounds_tests(){
-  
+  std::cout << " - running run_standard_bounds_tests()" << std::endl;
   {
     Bounds b;
     b.lower_bound = -1.0;
@@ -22,11 +22,22 @@ void run_standard_bounds_tests(){
 
     b.verify();
 
+    assert( b.span() == 2.0 );
+
     assert( b.apply( -2.0 ) == -1.0 );
     assert( b.apply( -1.0 ) == -1.0 );
     assert( b.apply( 0.0 ) == 0.0 );
     assert( b.apply( 1.0 ) == 1.0 );
     assert( b.apply( 2.0 ) == 1.0 );
+
+    //inside range
+    assert( b.get_vector( -0.5, 0.5 ) == 1.0 );
+    assert( b.get_vector( 0.25, -0.5 ) == -0.75 );
+    assert( b.get_vector( 0.25, 0.25 ) == 0 );
+
+    //outside range - this should still work
+    assert( b.get_vector( -100.0, 0 ) == 100.0 );
+    assert( b.get_vector( 500.0, -2.0 ) == -502.0 );
   }
 
   {
@@ -36,6 +47,8 @@ void run_standard_bounds_tests(){
     b.type = BoundsType::STANDARD;
 
     b.verify();
+
+    assert( b.span() == 10.5 );
 
     assert( b.apply( -1.0 ) == 0.0 );
     assert( b.apply(  0.0 ) == 0.0 );
@@ -78,7 +91,7 @@ void run_standard_bounds_tests(){
 }
 
 void run_pacman_bounds_tests(){
-  
+  std::cout << " - running run_pacman_bounds_tests()" << std::endl;
   {
     Bounds b;
     b.lower_bound = -1.0;
@@ -87,6 +100,8 @@ void run_pacman_bounds_tests(){
 
     b.verify();
 
+    assert( b.span() == 2.0 );
+
     assert( b.apply( -2.0 ) == 0.0 );
     assert( b.apply( -1.5 ) == 0.5 );
     assert( b.apply( -1.0 ) == -1.0 );
@@ -94,6 +109,23 @@ void run_pacman_bounds_tests(){
     assert( b.apply( 1.0 ) == 1.0 );
     assert( b.apply( 1.25 ) == -0.75 );
     assert( b.apply( 2.0 ) == 0.0 );
+
+    //inside range
+    assert( b.get_vector( 0, 1.5 ) == -0.5 );
+    assert( b.get_vector( 0.25, -0.5 ) == -0.75 );
+    assert( b.get_vector( -0.25, 0.5 ) == 0.75 );
+    assert( b.get_vector( 0.75, -0.5 ) == 0.75 );
+    assert( b.get_vector( 0.75, 0.75 ) == 0.0 );
+    assert( b.get_vector( 0.5, 1.0 ) == 0.5 );
+    assert( b.get_vector( 0.5, -1.0 ) == 0.5 );
+
+    //outside range - this should still work?
+    assert( b.get_vector( -100.0, -100.0 ) == 0.0 );    
+    assert( b.get_vector( -1.25, -1.0 ) == 0.25 );
+    assert( b.get_vector( -1.25, 1.0 ) == 0.25 );
+    assert( b.get_vector( 1.25, 0.0 ) == 0.75 );
+    assert( b.get_vector( 1.25, 1.0 ) == -0.25 );
+
   }
 
   {
@@ -103,6 +135,8 @@ void run_pacman_bounds_tests(){
     b.type = BoundsType::PACMAN;
 
     b.verify();
+
+    assert( b.span() == 10.5 );
 
     assert( b.apply( -1.0 ) == 9.5 );
     assert( b.apply(  0.0 ) == 0.0 );
