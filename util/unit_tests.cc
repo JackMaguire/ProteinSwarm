@@ -1,4 +1,4 @@
-//g++ unit_tests.cc -o unit_tests -Wall -std=c++11
+//g++ unit_tests.cc -o unit_tests -Wall -std=c++11 -D_GLIBCXX_DEBUG
 #define UNIT_TEST
 
 #include "../include/protein_swarm.hh"
