@@ -91,7 +91,7 @@ BOOST_PYTHON_MODULE( proteinswarm )
   Py_Initialize();
   np::initialize();
 
-  void (ProteinSwarm::*tell_sample)(Sample const &,Value) = &ProteinSwarm::tell;
+  void (ProteinSwarm::*tell)(Sample const &,Value) = &ProteinSwarm::tell;
   void (ProteinSwarm::*tell_sampleinfo)(SampleInfo, Value) = &ProteinSwarm::tell;
 
   def( "extract_data", &extract_data );
@@ -102,7 +102,7 @@ BOOST_PYTHON_MODULE( proteinswarm )
   class_< ProteinSwarm >( "ProteinSwarm", init<uint,uint,std::vector< Bounds > const &,InitialSamplingMethod>() )
     .def( "reset", &ProteinSwarm::reset )
     .def( "ask", &ProteinSwarm::ask )
-    .def( "tell_sample", tell_sample )
+    .def( "tell", tell )
     .def( "tell_sampleinfo", tell_sampleinfo )
     .def( "get_n_particles", &ProteinSwarm::get_n_particles );
 
