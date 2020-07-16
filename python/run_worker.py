@@ -45,6 +45,7 @@ def score( dofs ):
 
                 best_score = optimizer.get_global_best_score() / landscape.global_minimum
                 total_score += best_score
+                print( optimizer.get_global_best_score(), landscape.global_minimum )
                 # TODO
 
 
