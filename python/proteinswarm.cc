@@ -74,15 +74,19 @@ struct ProteinSwarmBounds {
   std::vector< Bounds > bounds_;
 };
 
-std::vector<double> myfunc(...);
-
 //https://stackoverflow.com/questions/10701514/how-to-return-numpy-array-from-boostpython
+template< typename T >
+np::ndarray
+vec_to_np( std::vector< T > const & v ){
+  Py_intptr_t shape[1] = { (Py_intptr_t) v.size() };
+  np::ndarray result = np::zeros(1, shape, np::dtype::get_builtin< T >());
+  std::copy( v.begin(), v.end(), reinterpret_cast<T*>(result.get_data() ) );
+  return result;
+}
+
 np::ndarray
 extract_data( Sample sample ) {
-  Py_intptr_t shape[1] = { (Py_intptr_t) sample.value.size() };
-  np::ndarray result = np::zeros(1, shape, np::dtype::get_builtin<double>());
-  std::copy( sample.value.begin(), sample.value.end(), reinterpret_cast<double*>(result.get_data() ) );
-  return result;
+  return vec_to_np( sample.value );
 }
 
 BOOST_PYTHON_MODULE( proteinswarm )
