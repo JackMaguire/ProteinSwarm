@@ -17,7 +17,7 @@ class FakeLandscape:
         #min and max values for minima
         self.min = -1.0
         self.max = 1.0
-        self.scale = 1.0 #we want to stay between 0 and 100
+        self.scale = 1.0
 
         #define min and max depths for the wells
         #(max means more negative, I suppose)
