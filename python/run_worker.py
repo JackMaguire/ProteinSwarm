@@ -1,5 +1,5 @@
 from mpi4py import MPI
-from fake_landscape import *
+from fake_landscapes import *
 #import nevergrad as ng
 #from numpy import mean
 import numpy as np
