@@ -14,7 +14,7 @@ def score( dofs ):
     seed = 0
     for ndim in [ 10, 15, 20 ]:
         for width_factor in [ 4, 8, 16, 32, 64 ]:
-            for budget_factor in [ 100, 250, 500, 1000 ]:
+            for budget_factor in [ 500, 750, 1000 ]:
                 seed += 1
                 np.random.seed( seed )
                 rand.seed( a=seed )
@@ -45,8 +45,6 @@ def score( dofs ):
 
                 best_score = optimizer.get_global_best_score() / landscape.global_minimum
                 total_score += best_score
-                # TODO
-
 
     return -1.0 * (total_score / float( seed ))
 
