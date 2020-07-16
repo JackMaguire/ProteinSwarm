@@ -348,10 +348,10 @@ public://setting parameters
 	void set_v_limit_b( Value setting ){ v_limit_b_ = setting; }
 
 	bool parameters_are_reasonable() const {
-		return v_limit_b_ > 0
-			&& (v_limit_b_ + v_limit_m_) > 0
+		return v_limit_b_ > 0	&& v_limit_m_ >= 0
+			&& (v_limit_b_ - v_limit_m_) => 0
 			&& c1_ > 0 && c2_ > 0
-			&& k1_ > 0 && k2_ > 0
+			&& k1_ > 0 && k2_ => 0
 			&& (k1_ - k2_) > 0
 			&& span_coeff_ > 0;
 	}
@@ -608,7 +608,7 @@ ProteinSwarm::update_to_new_position(
 
 		//apply velocity limits
 		Value const v_limit_frac =
-			v_limit_m_ * fraction_of_run_completed + v_limit_b_;
+			(-1.0 * v_limit_m_) * fraction_of_run_completed + v_limit_b_;
 		Value const max_v = v_limit_frac * bounds_[ d ].span();
 		Value const min_v = -1.0 * max_v;
 
