@@ -307,10 +307,6 @@ public://getters and setters
     return n_particles_;
   }
 
-  /*void set_n_particles( uint setting ){
-    n_particles_ = setting;
-  }*/
-
 	Value get_global_best_score() const {
 		return global_best_score_;
 	}
@@ -357,15 +353,16 @@ public://setting parameters
 	}
 
 private://parameters
-	Value span_coeff_ = 0.25;//see initialize()
+	//initialize()
+	Value span_coeff_ = 1.00150166;
 
-	//update_to_new_position
-	Value k1_ = 0.9;
-	Value k2_ = 0.7;
-	Value c1_ = 2.0;
-	Value c2_ = 2.0;
-	Value v_limit_m_ = 0.0;
-	Value v_limit_b_ = 0.2;
+	//update_to_new_position()
+	Value k1_ = 0.54535127;
+	Value k2_ = 0.31683267;
+	Value c1_ = 0.53639378;
+	Value c2_ = 0.48525865;
+	Value v_limit_m_ = 0.05030728;
+	Value v_limit_b_ = 0.05279768;
 
 private://data
   uint n_particles_;
@@ -566,8 +563,9 @@ inline
 void
 ProteinSwarm::update_to_new_position(
 	uint const particle_id,
-	float const fraction_of_run_completed // [0.0, 1.0)
+	float const frac_run_completed // [0.0, 1.0)
 ){
+	Value const capped_frac_run_completed = std::min( frac_run_completed, 1.0 );
 	Particle & particle = particles_[ particle_id ];
 
 	assert( ! particle.get_current_position().empty() ); //Did you call initialize()?
@@ -587,8 +585,8 @@ ProteinSwarm::update_to_new_position(
 	static_assert( std::is_floating_point< Value >::value, "Protein swarm was written assuming floating point values." );
 
 	//w = 0.9 - ( (0.7 * t) / numofiterations);
-	//w = k1 - ( k2 * fraction_of_run_completed);
-	Value const W = k1_ - ( k2_ * fraction_of_run_completed );
+	//w = k1 - ( k2 * capped_frac_run_completed);
+	Value const W = k1_ - ( k2_ * capped_frac_run_completed );
 
 	//sample a new position
 	for( uint d = 0; d < ndim_; ++d ){
@@ -608,7 +606,8 @@ ProteinSwarm::update_to_new_position(
 
 		//apply velocity limits
 		Value const v_limit_frac =
-			(-1.0 * v_limit_m_) * fraction_of_run_completed + v_limit_b_;
+			(-1.0 * v_limit_m_) * capped_frac_run_completed + v_limit_b_;
+
 		Value const max_v = v_limit_frac * bounds_[ d ].span();
 		Value const min_v = -1.0 * max_v;
 
