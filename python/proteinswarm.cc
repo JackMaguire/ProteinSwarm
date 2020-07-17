@@ -104,11 +104,13 @@ BOOST_PYTHON_MODULE( proteinswarm )
 
   void (ProteinSwarm::*tell)(Sample const &,Value) = &ProteinSwarm::tell;
   void (ProteinSwarm::*tell_sampleinfo)(SampleInfo, Value) = &ProteinSwarm::tell;
+  void (ProteinSwarm::*tell_particle_id)(uint, Value) = &ProteinSwarm::tell;
 
   def( "extract_data", &extract_data );
   def( "get_best_position", &get_best_position );
   
-  class_< Sample >( "Sample" );
+  class_< Sample >( "Sample" )
+    .def( "get_particle_id", &Sample::get_particle_id );
 
   
   class_< ProteinSwarm >( "ProteinSwarm", init<uint,std::vector< Bounds > const &,InitialSamplingMethod>() )

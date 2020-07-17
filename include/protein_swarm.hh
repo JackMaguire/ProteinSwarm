@@ -275,6 +275,10 @@ struct SampleInfo {
 struct Sample {
 	SampleInfo info;
 	std::vector< Value > value;
+
+	uint get_particle_id() const {
+		return info.particle;
+	}
 };
 
 //THIS IS NOT THREADSAFE
@@ -299,6 +303,12 @@ public:
   void tell( Sample const & sample, Value score ){
     tell( sample.info, score );
   }
+
+  void tell( uint const particle_id, Value score ){
+		SampleInfo si;
+		si.particle = particle_id;
+		tell( si, score );
+	}
 
   void tell( SampleInfo info, Value score );
 
