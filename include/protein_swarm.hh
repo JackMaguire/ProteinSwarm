@@ -553,7 +553,7 @@ ProteinSwarm::initialize(
 		std::vector< Value > starting_velocity( ndim_ );
 		for( uint d = 0; d < ndim_; ++d ){
 			Value const vec = ( bounds_[ d ].span() * span_coeff_ ) //scale magnitude of V to range size
-				* ( 2*rand_01() - 1.0); // adjust to ( -25% to 25% )
+				* ( 2*rand_01() - 1.0);
 			starting_velocity[ d ] = vec;
 		}
 
