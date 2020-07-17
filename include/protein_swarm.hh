@@ -355,9 +355,9 @@ public://setting parameters
 
 	bool parameters_are_reasonable() const {
 		return v_limit_b_ > 0	&& v_limit_m_ >= 0
-			&& (v_limit_b_ - v_limit_m_) => 0
+			&& (v_limit_b_ - v_limit_m_) >= 0
 			&& c1_ > 0 && c2_ > 0
-			&& k1_ > 0 && k2_ => 0
+			&& k1_ > 0 && k2_ >= 0
 			&& (k1_ - k2_) > 0
 			&& span_coeff_ > 0;
 	}
