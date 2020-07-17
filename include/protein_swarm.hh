@@ -298,7 +298,7 @@ public:
     //TODO
   }
 
-	Sample ask( float fraction_of_run_completed );
+	Sample ask( Value fraction_of_run_completed );
 
   void tell( Sample const & sample, Value score ){
     tell( sample.info, score );
@@ -341,7 +341,7 @@ protected:
 	void
 	update_to_new_position(
 		uint particle_id,
-		float fraction_of_run_completed // [0.0, 1.0)
+		Value fraction_of_run_completed // [0.0, 1.0)
 	);
 
 public://setting parameters
@@ -504,7 +504,7 @@ ProteinSwarm::ProteinSwarm(
 
 inline
 Sample
-ProteinSwarm::ask( float const fraction_of_run_completed ){
+ProteinSwarm::ask( Value const fraction_of_run_completed ){
 	++n_asks_;
 
 	assert( ! particle_queue_.empty() );
@@ -573,7 +573,7 @@ inline
 void
 ProteinSwarm::update_to_new_position(
 	uint const particle_id,
-	float const frac_run_completed // [0.0, 1.0)
+	Value const frac_run_completed // [0.0, 1.0)
 ){
 	Value const capped_frac_run_completed = std::min( frac_run_completed, 1.0 );
 	Particle & particle = particles_[ particle_id ];
